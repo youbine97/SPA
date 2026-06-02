@@ -37,3 +37,5 @@ src/public/uploads/*
 *.njsproj
 *.sln
 *.sw?
+
+.vercel
