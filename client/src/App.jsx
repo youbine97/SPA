@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { BrowserRouter, Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, Link, NavLink, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion'
 import {
   ArrowRight,
@@ -187,6 +187,95 @@ const posts = [
   ['Winter Skin in Paris: Barrier First', 'Skincare', 'Creams, peels, and rituals that keep skin calm.', 'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?auto=format&fit=crop&w=900&q=85'],
 ]
 
+const socialLinks = {
+  facebook: 'https://www.facebook.com/maisonelara',
+  instagram: 'https://www.instagram.com/maisonelara',
+  whatsapp: 'https://wa.me/12125550188?text=Bonjour%20Maison%20Elara%2C%20I%20would%20like%20to%20book%20an%20appointment.',
+}
+
+const apiBase = import.meta.env.VITE_API_URL || 'http://127.0.0.1:4000'
+const productCatalog = products.map(([name, category, price, image]) => ({
+  id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+  name,
+  category,
+  price,
+  image,
+}))
+const postCatalog = posts.map(([title, category, excerpt, image]) => ({
+  slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+  title,
+  category,
+  excerpt,
+  image,
+  body: `${excerpt} Maison Elara recommends a calm consultation, precise preparation, and a refined aftercare ritual tailored to your skin.`,
+}))
+
+const storeKeys = {
+  cart: 'maison-elara-cart',
+  bookings: 'maison-elara-bookings',
+  contacts: 'maison-elara-contacts',
+  subscribers: 'maison-elara-subscribers',
+  orders: 'maison-elara-orders',
+  admin: 'maison-elara-admin-records',
+}
+
+function readStore(key, fallback = []) {
+  try {
+    return JSON.parse(localStorage.getItem(key)) || fallback
+  } catch {
+    return fallback
+  }
+}
+
+function writeStore(key, value) {
+  localStorage.setItem(key, JSON.stringify(value))
+  window.dispatchEvent(new Event('maison-elara-store'))
+}
+
+function appendStore(key, item) {
+  const saved = { ...item, id: item.id || crypto.randomUUID(), createdAt: new Date().toISOString() }
+  writeStore(key, [...readStore(key), saved])
+  return saved
+}
+
+function useStoredCount(key) {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    const sync = () => setCount(readStore(key).reduce((total, item) => total + (item.quantity || 1), 0))
+    sync()
+    window.addEventListener('maison-elara-store', sync)
+    window.addEventListener('storage', sync)
+    return () => {
+      window.removeEventListener('maison-elara-store', sync)
+      window.removeEventListener('storage', sync)
+    }
+  }, [key])
+  return count
+}
+
+async function postJson(path, payload) {
+  const response = await fetch(`${apiBase}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) throw new Error('The live server is unavailable.')
+  return response.json()
+}
+
+function priceNumber(price) {
+  return Number(String(price).replace(/[^0-9.]/g, '')) || 0
+}
+
+function isEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
+function StatusMessage({ status }) {
+  if (!status?.message) return null
+  return <p className={`form-status ${status.type || 'info'}`}>{status.message}</p>
+}
+
 function SEO({ title, description }) {
   useEffect(() => {
     document.title = `${title} | Maison Elara`
@@ -251,9 +340,9 @@ function Header() {
         ))}
       </nav>
       <div className="social-cluster" aria-label="Social links">
-        <a href="https://facebook.com" aria-label="Facebook">f</a>
+        <a href={socialLinks.facebook} target="_blank" rel="noreferrer" aria-label="Facebook">f</a>
         <a href="tel:+12125550188" aria-label="Phone"><Phone /></a>
-        <a href="https://instagram.com" aria-label="Instagram"><Camera /></a>
+        <a href={socialLinks.instagram} target="_blank" rel="noreferrer" aria-label="Instagram"><Camera /></a>
       </div>
       <button className="icon-btn menu-btn" onClick={() => setOpen((value) => !value)} aria-label="Toggle menu">
         {open ? <X /> : <Menu />}
@@ -305,6 +394,7 @@ function Hero() {
   const titleY = useTransform(scrollYProgress, [0, 1], ['0%', '-34%'])
   const titleOpacity = useTransform(scrollYProgress, [0, 0.62], [1, 0.45])
   const reserveLetters = 'Réserver'.split('')
+  const cartCount = useStoredCount(storeKeys.cart)
 
   return (
     <section className="hero sticky-photo-hero" ref={heroRef}>
@@ -351,7 +441,7 @@ function Hero() {
         transition={{ delay: 0.7, duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
       >
       <Link className="floating-cart" to="/boutique" aria-label="Open boutique cart">
-        <span>0</span>
+        <span>{cartCount}</span>
         <ShoppingBag />
       </Link>
       </motion.div>
@@ -447,7 +537,7 @@ function ServiceCard({ service, delay = 0 }) {
         <h3>{service.title}</h3>
         <p>{service.description}</p>
         <div className="meta"><Clock /> {service.duration}<strong>{service.price}</strong></div>
-        <Link className="mini-btn" to="/booking">Reserve</Link>
+        <Link className="mini-btn" to={`/booking?service=${service.id}`}>Reserve</Link>
       </div>
     </Reveal>
   )
@@ -508,7 +598,13 @@ function InstagramFeed() {
     <section className="section">
       <SectionTitle eyebrow="Instagram" title="@maisonelara" />
       <div className="insta-grid">
-        {images.map((img, index) => <Reveal className="insta-tile" delay={index * 0.03} key={img}><img src={img} alt="Maison Elara social post" /><Camera /></Reveal>)}
+        {images.map((img, index) => (
+          <Reveal className="insta-tile" delay={index * 0.03} key={img}>
+            <a href={socialLinks.instagram} target="_blank" rel="noreferrer" aria-label="Open Maison Elara Instagram">
+              <img src={img} alt="Maison Elara social post" /><Camera />
+            </a>
+          </Reveal>
+        ))}
       </div>
     </section>
   )
@@ -529,12 +625,38 @@ function FAQ() {
 }
 
 function Newsletter() {
+  const [email, setEmail] = useState('')
+  const [status, setStatus] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const submit = (event) => {
+    event.preventDefault()
+    if (loading) return
+    const cleanEmail = email.trim()
+    if (!isEmail(cleanEmail)) {
+      setStatus({ type: 'error', message: 'Please enter a valid email address.' })
+      return
+    }
+    setLoading(true)
+    const subscribers = readStore(storeKeys.subscribers)
+    if (!subscribers.some((item) => item.email.toLowerCase() === cleanEmail.toLowerCase())) {
+      appendStore(storeKeys.subscribers, { email: cleanEmail, source: 'newsletter' })
+    }
+    setEmail('')
+    setStatus({ type: 'success', message: 'You are on the private list. Appointment windows will arrive by email.' })
+    setLoading(false)
+  }
+
   return (
     <section className="newsletter">
       <Reveal>
         <span className="eyebrow">Private list</span>
         <h2>Receive treatment launches and member-only appointment windows.</h2>
-        <form><input placeholder="Your email address" /><button className="btn primary">Join <Mail /></button></form>
+        <form onSubmit={submit}>
+          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Your email address" type="email" />
+          <button className="btn primary" disabled={loading}>{loading ? 'Joining...' : 'Join'} <Mail /></button>
+        </form>
+        <StatusMessage status={status} />
       </Reveal>
     </section>
   )
@@ -605,26 +727,86 @@ function Booking() {
 }
 
 function BookingSystem() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedService = services.find((service) => service.id === searchParams.get('service')) || services[0]
   const [step, setStep] = useState(1)
-  const [booking, setBooking] = useState({ service: services[0], specialist: specialists[0], date: '2026-06-05', time: slots[1], name: '', email: '', phone: '' })
+  const [booking, setBooking] = useState({ service: selectedService, specialist: specialists[0], date: '2026-06-05', time: slots[1], name: '', email: '', phone: '', notes: '' })
+  const [status, setStatus] = useState(null)
+  const [loading, setLoading] = useState(false)
   const days = ['2026-06-05', '2026-06-06', '2026-06-07', '2026-06-08', '2026-06-09']
-  const update = (patch) => setBooking((value) => ({ ...value, ...patch }))
+  const update = (patch) => {
+    setStatus(null)
+    setBooking((value) => ({ ...value, ...patch }))
+  }
   const confirmed = step === 6
+  const validateClient = () => {
+    if (booking.name.trim().length < 2) return 'Please enter your full name.'
+    if (!isEmail(booking.email.trim())) return 'Please enter a valid email address.'
+    if (booking.phone.trim().length < 6) return 'Please enter a reachable phone number.'
+    return ''
+  }
+  const continueFlow = async () => {
+    if (loading) return
+    if (step < 5) {
+      setStep((s) => Math.min(6, s + 1))
+      return
+    }
+    const error = validateClient()
+    if (error) {
+      setStatus({ type: 'error', message: error })
+      return
+    }
+    const payload = {
+      serviceId: booking.service.id,
+      specialist: booking.specialist,
+      date: booking.date,
+      time: booking.time,
+      clientName: booking.name.trim(),
+      clientEmail: booking.email.trim(),
+      clientPhone: booking.phone.trim(),
+      notes: booking.notes.trim(),
+      serviceTitle: booking.service.title,
+      price: booking.service.price,
+    }
+    setLoading(true)
+    try {
+      await postJson('/api/bookings', payload)
+      appendStore(storeKeys.bookings, { ...payload, status: 'confirmed', source: 'api' })
+      setStatus({ type: 'success', message: 'Appointment confirmed. A concierge confirmation is prepared.' })
+    } catch {
+      appendStore(storeKeys.bookings, { ...payload, status: 'confirmed', source: 'local' })
+      setStatus({ type: 'success', message: 'Appointment confirmed locally. The concierge team can see it in admin.' })
+    } finally {
+      setLoading(false)
+      setStep(6)
+    }
+  }
+  const selectService = (service) => {
+    update({ service })
+    setSearchParams({ service: service.id })
+  }
+  const resetBooking = () => {
+    setBooking({ service: services[0], specialist: specialists[0], date: '2026-06-05', time: slots[1], name: '', email: '', phone: '', notes: '' })
+    setSearchParams({})
+    setStatus(null)
+    setStep(1)
+  }
 
   return (
     <section className="booking-layout">
       <Reveal className="booking-panel">
         <div className="steps">{[1, 2, 3, 4, 5, 6].map((n) => <span className={step >= n ? 'active' : ''} key={n}>{n}</span>)}</div>
         {!confirmed && <h2>{['Select service', 'Choose specialist', 'Select date', 'Select time', 'Client information'][step - 1]}</h2>}
-        {step === 1 && <ChoiceGrid items={services.slice(0, 6)} selected={booking.service.id} label={(s) => `${s.title} ${s.price}`} onPick={(service) => update({ service })} />}
+        {step === 1 && <ChoiceGrid items={services.slice(0, 6)} selected={booking.service.id} label={(s) => `${s.title} ${s.price}`} onPick={selectService} />}
         {step === 2 && <ChoiceGrid items={specialists} selected={booking.specialist} label={(s) => s} onPick={(specialist) => update({ specialist })} />}
         {step === 3 && <ChoiceGrid items={days} selected={booking.date} label={(d) => new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} onPick={(date) => update({ date })} />}
         {step === 4 && <ChoiceGrid items={slots} selected={booking.time} label={(s) => s} onPick={(time) => update({ time })} />}
         {step === 5 && <ClientForm booking={booking} update={update} />}
-        {confirmed && <Success booking={booking} />}
+        {confirmed && <Success booking={booking} onReset={resetBooking} />}
+        <StatusMessage status={status} />
         <div className="booking-actions">
           <button className="btn ghost" disabled={step === 1} onClick={() => setStep((s) => Math.max(1, s - 1))}><ChevronLeft /> Back</button>
-          {!confirmed && <button className="btn primary" onClick={() => setStep((s) => Math.min(6, s + 1))}>Continue <ChevronRight /></button>}
+          {!confirmed && <button className="btn primary" disabled={loading} onClick={continueFlow}>{loading ? 'Confirming...' : 'Continue'} <ChevronRight /></button>}
         </div>
       </Reveal>
       <BookingSummary booking={booking} />
@@ -682,9 +864,9 @@ function ClientForm({ booking, update }) {
   return (
     <div className="form-grid">
       <input value={booking.name} onChange={(e) => update({ name: e.target.value })} placeholder="Full name" />
-      <input value={booking.email} onChange={(e) => update({ email: e.target.value })} placeholder="Email address" />
-      <input value={booking.phone} onChange={(e) => update({ phone: e.target.value })} placeholder="Phone number" />
-      <textarea placeholder="Notes for your specialist" />
+      <input value={booking.email} onChange={(e) => update({ email: e.target.value })} placeholder="Email address" type="email" />
+      <input value={booking.phone} onChange={(e) => update({ phone: e.target.value })} placeholder="Phone number" type="tel" />
+      <textarea value={booking.notes} onChange={(e) => update({ notes: e.target.value })} placeholder="Notes for your specialist" />
     </div>
   )
 }
@@ -703,13 +885,13 @@ function BookingSummary({ booking }) {
   )
 }
 
-function Success({ booking }) {
+function Success({ booking, onReset }) {
   return (
     <div className="success">
       <ShieldCheck />
       <h2>Appointment confirmed</h2>
       <p>Your confirmation for {booking.service.title} with {booking.specialist} is ready. A concierge email will be sent to {booking.email || 'your inbox'}.</p>
-      <Link className="btn primary" to="/services">Book another treatment</Link>
+      <button className="btn primary" onClick={onReset}>Book another treatment</button>
     </div>
   )
 }
@@ -717,8 +899,48 @@ function Success({ booking }) {
 function Boutique() {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('All')
-  const categories = ['All', ...new Set(products.map((p) => p[1]))]
-  const visible = products.filter((p) => (category === 'All' || p[1] === category) && p[0].toLowerCase().includes(query.toLowerCase()))
+  const [cart, setCart] = useState(() => readStore(storeKeys.cart))
+  const [status, setStatus] = useState(null)
+  const categories = ['All', ...new Set(productCatalog.map((p) => p.category))]
+  const visible = productCatalog.filter((p) => (category === 'All' || p.category === category) && p.name.toLowerCase().includes(query.toLowerCase()))
+  const addToCart = (product) => {
+    const next = [...cart]
+    const existing = next.find((item) => item.id === product.id)
+    if (existing) existing.quantity += 1
+    else next.push({ ...product, quantity: 1 })
+    setCart(next)
+    writeStore(storeKeys.cart, next)
+    setStatus({ type: 'success', message: `${product.name} added to cart.` })
+  }
+  const removeFromCart = (id) => {
+    const next = cart.filter((item) => item.id !== id)
+    setCart(next)
+    writeStore(storeKeys.cart, next)
+    setStatus({ type: 'info', message: 'Item removed from cart.' })
+  }
+  const checkout = async () => {
+    if (cart.length === 0) {
+      setStatus({ type: 'error', message: 'Your cart is empty. Add a product before checkout.' })
+      return
+    }
+    const order = {
+      clientName: 'Maison Elara Guest',
+      clientEmail: 'guest@maisonelara.local',
+      items: cart.map((item) => ({ productId: item.id, quantity: item.quantity, unitPrice: priceNumber(item.price), name: item.name })),
+      total: cart.reduce((total, item) => total + priceNumber(item.price) * item.quantity, 0),
+      status: 'paid',
+    }
+    try {
+      await postJson('/api/orders', { ...order, items: cart.map((item) => ({ productId: item.id, quantity: item.quantity })) })
+      appendStore(storeKeys.orders, { ...order, source: 'api' })
+    } catch {
+      appendStore(storeKeys.orders, { ...order, source: 'local' })
+    }
+    setCart([])
+    writeStore(storeKeys.cart, [])
+    setStatus({ type: 'success', message: 'Checkout complete. Your order confirmation has been saved.' })
+  }
+
   return (
     <PageShell eyebrow="Boutique" title="Clinical-luxury skincare for your ritual at home." image={products[0][3]}>
       <SEO title="Shop Boutique" description="Luxury beauty product catalog with search, filters, product cards, cart, checkout, and order confirmation." />
@@ -727,39 +949,77 @@ function Boutique() {
         <div>{categories.map((c) => <button className={category === c ? 'active' : ''} onClick={() => setCategory(c)} key={c}>{c}</button>)}</div>
       </section>
       <section className="card-grid three">
-        {visible.map(([name, cat, price, img]) => <ProductCard key={name} name={name} cat={cat} price={price} img={img} />)}
+        {visible.map((product) => <ProductCard key={product.id} product={product} onAdd={addToCart} />)}
       </section>
-      <CartCheckout />
+      <CartCheckout cart={cart} onRemove={removeFromCart} onCheckout={checkout} />
+      <StatusMessage status={status} />
     </PageShell>
   )
 }
 
-function ProductCard({ name, cat, price, img }) {
+function ProductCard({ product, onAdd }) {
   return (
     <Reveal className="product-card">
-      <div className="image-shell"><img src={img} alt={name} /></div>
-      <span>{cat}</span><h3>{name}</h3><p>Elegant, sensorial, and selected for post-treatment skin support.</p>
-      <div className="meta"><strong>{price}</strong><button className="mini-btn"><ShoppingBag /> Add</button></div>
+      <div className="image-shell"><img src={product.image} alt={product.name} /></div>
+      <span>{product.category}</span><h3>{product.name}</h3><p>Elegant, sensorial, and selected for post-treatment skin support.</p>
+      <div className="meta"><strong>{product.price}</strong><button className="mini-btn" onClick={() => onAdd(product)}><ShoppingBag /> Add</button></div>
     </Reveal>
   )
 }
 
-function CartCheckout() {
+function CartCheckout({ cart, onRemove, onCheckout }) {
+  const itemCount = cart.reduce((total, item) => total + item.quantity, 0)
+  const total = cart.reduce((sum, item) => sum + priceNumber(item.price) * item.quantity, 0)
   return (
     <Reveal className="checkout-strip glass">
-      <div><ShoppingBag /><strong>Cart</strong><span>2 selected items</span></div>
-      <div><CreditCard /><strong>Checkout</strong><span>Secure payment ready</span></div>
-      <div><ShieldCheck /><strong>Order confirmation</strong><span>Receipt and delivery email</span></div>
+      <div><ShoppingBag /><strong>Cart</strong><span>{itemCount} selected item{itemCount === 1 ? '' : 's'}</span></div>
+      <div><CreditCard /><strong>Checkout</strong><span>${total.toFixed(2)} secure payment ready</span><button className="mini-btn" onClick={onCheckout}>Checkout</button></div>
+      <div><ShieldCheck /><strong>Order confirmation</strong><span>Receipt and delivery email</span>{cart.map((item) => <button className="mini-btn" key={item.id} onClick={() => onRemove(item.id)}>Remove {item.quantity}x {item.name}</button>)}</div>
     </Reveal>
   )
 }
 
 function Blog() {
+  const [query, setQuery] = useState('')
+  const [category, setCategory] = useState('All')
+  const categories = ['All', ...new Set(postCatalog.map((post) => post.category))]
+  const visible = postCatalog.filter((post) => {
+    const haystack = `${post.title} ${post.category} ${post.excerpt}`.toLowerCase()
+    return (category === 'All' || post.category === category) && haystack.includes(query.toLowerCase())
+  })
+
   return (
     <PageShell eyebrow="Blog" title="Beauty intelligence for polished routines and smarter bookings." image={posts[0][3]}>
       <SEO title="Blog & News" description="Beauty articles, tips, news, categories, search, and related article previews." />
-      <section className="shop-tools"><label><Search /><input placeholder="Search beauty articles" /></label><div>{['All', 'Beauty Tips', 'Aesthetic News', 'Skincare'].map((c) => <button key={c}>{c}</button>)}</div></section>
-      <section className="card-grid three">{posts.map(([title, cat, text, img]) => <Reveal className="article-card" key={title}><img src={img} alt={title} /><span>{cat}</span><h3>{title}</h3><p>{text}</p><Link className="text-link" to="/blog">Read article <ArrowRight /></Link></Reveal>)}</section>
+      <section className="shop-tools">
+        <label><Search /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search beauty articles" /></label>
+        <div>{categories.map((c) => <button className={category === c ? 'active' : ''} onClick={() => setCategory(c)} key={c}>{c}</button>)}</div>
+      </section>
+      <section className="card-grid three">
+        {visible.map((post) => (
+          <Reveal className="article-card" key={post.title}>
+            <img src={post.image} alt={post.title} /><span>{post.category}</span><h3>{post.title}</h3><p>{post.excerpt}</p>
+            <Link className="text-link" to={`/blog/${post.slug}`}>Read article <ArrowRight /></Link>
+          </Reveal>
+        ))}
+      </section>
+    </PageShell>
+  )
+}
+
+function BlogArticle() {
+  const { pathname } = useLocation()
+  const slug = pathname.split('/').pop()
+  const post = postCatalog.find((item) => item.slug === slug) || postCatalog[0]
+  return (
+    <PageShell eyebrow={post.category} title={post.title} image={post.image}>
+      <SEO title={post.title} description={post.excerpt} />
+      <section className="section">
+        <Reveal className="article-card">
+          <p>{post.body}</p>
+          <Link className="text-link" to="/blog"><ChevronLeft /> Back to articles</Link>
+        </Reveal>
+      </section>
     </PageShell>
   )
 }
@@ -785,18 +1045,66 @@ function Testimonials() {
 }
 
 function Contact() {
+  const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' })
+  const [status, setStatus] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const update = (field, value) => {
+    setStatus(null)
+    setForm((current) => ({ ...current, [field]: value }))
+  }
+  const submit = async (event) => {
+    event.preventDefault()
+    if (loading) return
+    if (form.name.trim().length < 2) {
+      setStatus({ type: 'error', message: 'Please enter your full name.' })
+      return
+    }
+    if (!isEmail(form.email.trim())) {
+      setStatus({ type: 'error', message: 'Please enter a valid email address.' })
+      return
+    }
+    if (form.message.trim().length < 10) {
+      setStatus({ type: 'error', message: 'Please enter a message of at least 10 characters.' })
+      return
+    }
+    const payload = {
+      name: form.name.trim(),
+      email: form.email.trim(),
+      phone: form.phone.trim(),
+      message: form.message.trim(),
+    }
+    setLoading(true)
+    try {
+      await postJson('/api/contact', payload)
+      appendStore(storeKeys.contacts, { ...payload, source: 'api', isRead: false })
+      setStatus({ type: 'success', message: 'Message sent. The concierge team will reply shortly.' })
+    } catch {
+      appendStore(storeKeys.contacts, { ...payload, source: 'local', isRead: false })
+      setStatus({ type: 'success', message: 'Message saved locally for the concierge team.' })
+    } finally {
+      setLoading(false)
+      setForm({ name: '', email: '', phone: '', message: '' })
+    }
+  }
+
   return (
     <PageShell eyebrow="Contact" title="Speak with the concierge team." image={clinicImage}>
       <SEO title="Contact" description="Contact form, phone, email, address, map, and WhatsApp booking support for Maison Elara." />
       <section className="contact-page">
-        <Reveal className="contact-form">
-          <input placeholder="Full name" /><input placeholder="Email address" /><input placeholder="Phone" /><textarea placeholder="How may we help?" />
-          <button className="btn primary">Send message <Mail /></button>
+        <Reveal className="contact-form" as="form">
+          <form className="contact-form" onSubmit={submit}>
+            <input value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Full name" />
+            <input value={form.email} onChange={(e) => update('email', e.target.value)} placeholder="Email address" type="email" />
+            <input value={form.phone} onChange={(e) => update('phone', e.target.value)} placeholder="Phone" type="tel" />
+            <textarea value={form.message} onChange={(e) => update('message', e.target.value)} placeholder="How may we help?" />
+            <button className="btn primary" disabled={loading}>{loading ? 'Sending...' : 'Send message'} <Mail /></button>
+            <StatusMessage status={status} />
+          </form>
         </Reveal>
         <Reveal className="map-card glass">
           <div className="map"><MapPin /></div>
           <p><Phone /> +1 212 555 0188</p><p><Mail /> concierge@maisonelara.com</p><p><MapPin /> 18 Rue Lumiere, Paris</p>
-          <a className="btn whatsapp" href="https://wa.me/12125550188"><MessageCircle /> WhatsApp</a>
+          <a className="btn whatsapp" href={socialLinks.whatsapp} target="_blank" rel="noreferrer"><MessageCircle /> WhatsApp</a>
         </Reveal>
       </section>
     </PageShell>
@@ -805,6 +1113,104 @@ function Contact() {
 
 function Admin() {
   const modules = ['Users', 'Bookings', 'Services', 'Products', 'Orders', 'Reviews', 'Blog articles', 'Team members', 'Gallery', 'Newsletter subscribers', 'Contact messages']
+  const [active, setActive] = useState(null)
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState('All')
+  const [editing, setEditing] = useState(null)
+  const [status, setStatus] = useState(null)
+  const fileInput = useRef(null)
+  const getRecords = (module) => {
+    const admin = readStore(storeKeys.admin, {})
+    const saved = admin[module] || []
+    const defaults = {
+      Services: services.map((item) => ({ id: item.id, title: item.title, category: item.category, status: 'active' })),
+      Products: productCatalog.map((item) => ({ id: item.id, title: item.name, category: item.category, status: 'active' })),
+      Bookings: readStore(storeKeys.bookings).map((item) => ({ ...item, title: item.serviceTitle || item.serviceId, category: item.status || 'confirmed' })),
+      Orders: readStore(storeKeys.orders).map((item) => ({ ...item, title: `Order ${item.id?.slice(0, 8) || 'local'}`, category: item.status || 'paid' })),
+      'Newsletter subscribers': readStore(storeKeys.subscribers).map((item) => ({ ...item, title: item.email, category: item.source || 'newsletter' })),
+      'Contact messages': readStore(storeKeys.contacts).map((item) => ({ ...item, title: item.name, category: item.isRead ? 'read' : 'unread' })),
+      'Blog articles': postCatalog.map((item) => ({ id: item.slug, title: item.title, category: item.category, status: 'published' })),
+      'Team members': team.map(([name, role]) => ({ id: name, title: name, category: role, status: 'active' })),
+      Gallery: [heroImage, clinicImage, ...services.slice(0, 4).map((item) => item.image)].map((image, index) => ({ id: `image-${index + 1}`, title: `Gallery image ${index + 1}`, category: 'published', image })),
+      Users: [{ id: 'admin-local', title: 'Maison Elara Admin', category: 'admin', status: 'active' }],
+      Reviews: reviews.map(([quote, name, role]) => ({ id: name, title: name, category: role, status: quote })),
+    }
+    return saved.length ? saved : (defaults[module] || [])
+  }
+  const setRecords = (module, records) => {
+    const admin = readStore(storeKeys.admin, {})
+    writeStore(storeKeys.admin, { ...admin, [module]: records })
+  }
+  const records = active ? getRecords(active) : []
+  const categories = ['All', ...new Set(records.map((record) => record.category || record.status).filter(Boolean))]
+  const visible = records.filter((record) => {
+    const text = JSON.stringify(record).toLowerCase()
+    return (filter === 'All' || record.category === filter || record.status === filter) && text.includes(query.toLowerCase())
+  })
+  const openModule = (module) => {
+    setActive(module)
+    setQuery('')
+    setFilter('All')
+    setEditing(null)
+    setStatus({ type: 'info', message: `${module} management opened.` })
+  }
+  const saveRecord = (event) => {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    const record = {
+      id: editing?.id || crypto.randomUUID(),
+      title: String(data.get('title') || '').trim(),
+      category: String(data.get('category') || '').trim() || 'general',
+      status: String(data.get('status') || '').trim() || 'active',
+      updatedAt: new Date().toISOString(),
+    }
+    if (!record.title) {
+      setStatus({ type: 'error', message: 'Please enter a title before saving.' })
+      return
+    }
+    const next = editing
+      ? records.map((item) => (item.id === editing.id ? { ...item, ...record } : item))
+      : [...records, record]
+    setRecords(active, next)
+    setEditing(null)
+    setStatus({ type: 'success', message: `${active} saved.` })
+  }
+  const deleteRecord = (record) => {
+    if (!window.confirm(`Delete ${record.title || record.name || record.email}?`)) return
+    setRecords(active, records.filter((item) => item.id !== record.id))
+    setStatus({ type: 'success', message: 'Record deleted safely.' })
+  }
+  const viewRecord = (record) => {
+    setStatus({ type: 'info', message: JSON.stringify(record, null, 2) })
+  }
+  const exportRecords = () => {
+    const blob = new Blob([JSON.stringify(records, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${active.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.json`
+    link.click()
+    URL.revokeObjectURL(url)
+    setStatus({ type: 'success', message: `${active} exported.` })
+  }
+  const uploadRecords = (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const imported = JSON.parse(reader.result)
+        if (!Array.isArray(imported)) throw new Error('Expected an array.')
+        setRecords(active, imported.map((item) => ({ id: item.id || crypto.randomUUID(), ...item })))
+        setStatus({ type: 'success', message: `${imported.length} records uploaded.` })
+      } catch {
+        setStatus({ type: 'error', message: 'Upload a valid JSON array export.' })
+      }
+    }
+    reader.readAsText(file)
+    event.target.value = ''
+  }
+
   return (
     <PageShell eyebrow="Admin" title="Executive dashboard for clinic operations." image={clinicImage}>
       <SEO title="Admin Dashboard" description="Admin dashboard to manage users, bookings, services, products, orders, reviews, articles, team, gallery, subscribers, and messages." />
@@ -818,8 +1224,44 @@ function Admin() {
         ].map(([label, value, note]) => <Reveal className="dash-stat" key={label}><span>{label}</span><strong>{value}</strong><p>{note}</p></Reveal>)}
       </section>
       <section className="admin-grid">
-        {modules.map((item) => <Reveal className="admin-card" key={item}><Crown /><strong>{item}</strong><button>Manage</button></Reveal>)}
+        {modules.map((item) => <Reveal className="admin-card" key={item}><Crown /><strong>{item}</strong><button onClick={() => openModule(item)}>Manage</button></Reveal>)}
       </section>
+      {active && (
+        <section className="admin-panel">
+          <div className="shop-tools">
+            <label><Search /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${active}`} /></label>
+            <div>{categories.map((item) => <button className={filter === item ? 'active' : ''} onClick={() => setFilter(item)} key={item}>{item}</button>)}</div>
+          </div>
+          <div className="admin-actions">
+            <button className="mini-btn" onClick={() => setEditing({ title: '', category: '', status: 'active' })}>Create</button>
+            <button className="mini-btn" onClick={exportRecords}>Export</button>
+            <button className="mini-btn" onClick={() => fileInput.current?.click()}>Upload</button>
+            <button className="mini-btn" onClick={() => { setActive(null); setEditing(null); setStatus(null) }}>Close</button>
+            <input ref={fileInput} className="sr-only" type="file" accept="application/json" onChange={uploadRecords} />
+          </div>
+          {editing && (
+            <form className="admin-edit" onSubmit={saveRecord}>
+              <input name="title" defaultValue={editing.title || editing.name || editing.email || ''} placeholder="Title" />
+              <input name="category" defaultValue={editing.category || editing.status || ''} placeholder="Category" />
+              <input name="status" defaultValue={editing.status || 'active'} placeholder="Status" />
+              <button className="btn primary">Save</button>
+              <button className="btn ghost" type="button" onClick={() => setEditing(null)}>Cancel</button>
+            </form>
+          )}
+          <div className="admin-table">
+            {visible.map((record) => (
+              <div className="admin-row" key={record.id}>
+                <strong>{record.title || record.name || record.email || record.clientEmail || record.id}</strong>
+                <span>{record.category || record.status || 'record'}</span>
+                <button className="mini-btn" onClick={() => viewRecord(record)}>View</button>
+                <button className="mini-btn" onClick={() => setEditing(record)}>Edit</button>
+                <button className="mini-btn" onClick={() => deleteRecord(record)}>Delete</button>
+              </div>
+            ))}
+          </div>
+          <StatusMessage status={status} />
+        </section>
+      )}
     </PageShell>
   )
 }

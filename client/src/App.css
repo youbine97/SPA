@@ -1035,110 +1035,81 @@ footer p { color: #d7c9bb; }
   to { transform: scale(1.06) translateY(-10px); }
 }
 
-@media (max-width: 1760px) and (min-width: 1281px) {
+@media (min-width: 1024px) {
   .site-header {
-    padding: 0 24px;
-    gap: 18px;
+    flex-wrap: nowrap;
+  }
+
+  .site-header .brand {
+    flex: 0 0 auto;
+  }
+
+  .site-header .nav {
+    position: static;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: center;
+    min-width: 0;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: none;
+  }
+
+  .site-header .nav a {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .site-header .social-cluster {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .site-header .menu-btn {
+    display: none;
+  }
+}
+
+@media (min-width: 1280px) and (max-width: 1599px) {
+  .site-header {
+    gap: 14px;
+    padding-inline: 20px;
   }
 
   .site-header .brand div {
-    font-size: clamp(36px, 2.55vw, 46px);
+    font-size: 36px;
   }
 
   .brand small {
-    font-size: 16px;
+    font-size: 14px;
   }
 
   .nav {
-    position: absolute;
-    top: 100%;
-    right: 24px;
-    width: min(420px, calc(100vw - 48px));
-    max-height: calc(100vh - 118px);
-    overflow-y: auto;
-    display: none;
-    flex-direction: column;
-    align-items: stretch;
-    padding: 12px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: rgba(255,255,255,.96);
-    box-shadow: var(--shadow);
+    gap: clamp(9px, 0.8vw, 15px);
   }
 
-  .nav.open { display: flex; }
   .nav a {
-    min-height: 48px;
-    padding: 14px 16px;
-    font-size: 14px;
+    font-size: clamp(10px, 0.78vw, 12px);
   }
-  .nav a::after { bottom: 5px; left: 14px; right: 14px; }
 
   .social-cluster {
-    display: flex;
-    gap: 18px;
-    margin-left: auto;
+    gap: 9px;
+    margin-left: 8px;
   }
 
   .social-cluster a {
-    width: 52px;
-    height: 52px;
-  }
-
-  .icon-btn {
-    display: grid;
-  }
-
-  .menu-btn {
-    margin-left: 0;
+    width: 42px;
+    height: 42px;
   }
 }
 
 @media (max-width: 1440px) {
-  .site-header {
-    height: 88px;
-    padding: 0 18px;
-    gap: 14px;
-  }
-  .site-header .brand div {
-    font-size: 38px;
-  }
-  .nav {
-    position: absolute;
-    top: 100%;
-    right: 18px;
-    width: min(420px, calc(100vw - 36px));
-    max-height: calc(100vh - 104px);
-    overflow-y: auto;
-    display: none;
-    flex-direction: column;
-    align-items: stretch;
-    padding: 12px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: rgba(255,255,255,.94);
-    box-shadow: var(--shadow);
-  }
-  .nav.open { display: flex; }
-  .nav a {
-    min-height: 48px;
-    padding: 14px 16px;
-    font-size: 14px;
-  }
-  .nav a::after { bottom: 5px; left: 14px; right: 14px; }
-  .social-cluster {
-    display: flex;
-    gap: 16px;
-    margin-left: auto;
-  }
-  .social-cluster a {
-    width: 50px;
-    height: 50px;
-  }
-  .icon-btn { display: grid; }
-  .menu-btn { margin-left: 0; }
-  .header-cta { margin-left: auto; }
-  .hero { margin-top: 88px; min-height: calc(100vh - 88px); }
   .hero .hero-image { background-attachment: scroll; }
   .card-grid.three, .card-grid.four, .dashboard, .admin-grid { grid-template-columns: repeat(2, 1fr); }
   .insta-grid { grid-template-columns: repeat(3, 1fr); }
@@ -1149,6 +1120,58 @@ footer p { color: #d7c9bb; }
   .summary-card { position: static; }
   .hero-card { display: none; }
   footer { grid-template-columns: 1fr; }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .site-header {
+    height: 88px;
+    gap: 9px;
+    padding-inline: 12px;
+  }
+
+  .site-header .brand div {
+    font-size: 27px;
+    letter-spacing: 1px;
+  }
+
+  .brand small {
+    font-size: 12px;
+    letter-spacing: 1.5px;
+  }
+
+  .nav {
+    gap: 6px;
+  }
+
+  .nav a {
+    padding-block: 34px 32px;
+    font-size: 9px;
+  }
+
+  .nav a::after {
+    bottom: 22px;
+  }
+
+  .social-cluster {
+    gap: 6px;
+    margin-left: 4px;
+  }
+
+  .social-cluster a {
+    width: 34px;
+    height: 34px;
+    font-size: 17px;
+  }
+
+  .social-cluster svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .hero {
+    margin-top: 88px;
+    min-height: calc(100vh - 88px);
+  }
 }
 
 @media (min-width: 721px) and (max-width: 1280px) {
@@ -1176,12 +1199,98 @@ footer p { color: #d7c9bb; }
   }
 }
 
+@media (max-width: 1023px) {
+  .site-header {
+    height: 88px;
+    gap: 14px;
+    padding-inline: 18px;
+  }
+
+  .site-header .brand div {
+    font-size: 38px;
+  }
+
+  .nav {
+    position: absolute;
+    top: calc(100% + 1px);
+    right: 18px;
+    display: flex;
+    width: min(420px, calc(100vw - 36px));
+    max-height: calc(100svh - 106px);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    margin: 0;
+    padding: 14px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(255,255,255,.96);
+    box-shadow: var(--shadow);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-10px) scale(0.98);
+    transform-origin: top right;
+    transition: opacity 0.22s ease, transform 0.22s ease, visibility 0.22s ease;
+  }
+
+  .nav.open {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+  }
+
+  .nav a {
+    min-height: 48px;
+    padding: 14px 16px;
+    font-size: 14px;
+  }
+
+  .nav a::after {
+    right: 16px;
+    bottom: 6px;
+    left: 16px;
+  }
+
+  .social-cluster {
+    gap: 12px;
+    margin-left: auto;
+  }
+
+  .social-cluster a {
+    width: 46px;
+    height: 46px;
+  }
+
+  .icon-btn {
+    display: grid;
+  }
+
+  .menu-btn {
+    margin-left: 0;
+  }
+
+  .hero {
+    margin-top: 88px;
+    min-height: calc(100vh - 88px);
+  }
+}
+
 @media (max-width: 720px) {
   .site-header { top: 0; height: 78px; width: 100%; padding: 0 12px; }
   .site-header .brand div { font-size: 30px; letter-spacing: 1px; }
   .brand small { display: none; }
   .social-cluster { display: none; }
   .menu-btn { margin-left: auto; }
+  .nav {
+    right: 12px;
+    width: calc(100vw - 24px);
+    max-height: calc(100svh - 90px);
+    padding: 12px;
+  }
   .header-cta { display: none; }
   .hero { min-height: calc(78svh - 78px); margin-top: 78px; padding: 0 18px; }
   .hero .hero-image {
